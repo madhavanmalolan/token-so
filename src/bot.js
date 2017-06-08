@@ -592,7 +592,7 @@ function processHelp(session){
     let helpControls = [
       {type: 'button', label: 'Login with your StackOverflow Account', value: 'register'},
       {type: 'button', label: 'Who Am I', value: 'whoami'},
-      {type: 'button', label: 'Ask a question with a cash bounty', value: 'post'},
+      {type: 'button', label: 'Ask a question with a cash bounty', value: 'ask'},
       {type: 'button', label: 'Questions that i have asked', value: 'questions'},
       {type: 'button', label: 'Questions that i have been asked', value: 'requests'}
     ]
