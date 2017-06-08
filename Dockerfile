@@ -1,7 +1,7 @@
 # latest official node image
 FROM node:latest
 
-RUN git config --global user.email 'docker-dummy@example.com'
+RUN git config --global user.email 'madhavanmalolan@gmail.com'
 RUN npm install -g nodemon
 
 # use cached layer for node modules

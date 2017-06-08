@@ -3,9 +3,9 @@ const SOFA = require('sofa-js')
 const Fiat = require('./lib/Fiat')
 const request = require('request')
 const unit = require('ethjs-unit')
+const twitter = require('./twitter.js')
 
-
-const SITE = "stackapps"
+const SITE = "stackoverflow"
 let bot = new Bot()
 
 // ROUTING
@@ -33,7 +33,7 @@ bot.onEvent = function(session, message) {
 
 
 function welcome(session){
-    sendMessage(session, "This is a bot that allows you to get your questions on StackOverflow solved under tight time constraints for a small price.\n\nIf you are an expert, this is a great place to monetize your expertise!")
+    sendMessage(session, "This is a bot that allows you to get your questions on StackOverflow solved under tight time constraints for a small price.\n\nIf you are an expert, this is a great place to monetize your expertise!\n\nAt any time, if you need help, just type in 'Help' and send!")
 }
 
 
@@ -71,12 +71,12 @@ function onPayment(session, message) {
 
 function parseCommand(session, command){
 
-/*  if(command.content.value === "terminate"){
+  if(command.content.value === "terminate"){
     session.set('state','new')
     sendMessage(session, "Transaction in process, please maintain silence")
     return
   }
-*/
+
   if(command.content.value === "block"){
       let controls = [
         {type: 'button', label: 'Terminate', value: 'terminate'}
@@ -88,6 +88,12 @@ function parseCommand(session, command){
       processHelp(session)
       return;
   }
+
+  if(command.content.value === "ask"){
+      processAsk(session)
+  }
+
+
   if(command.content.value === "register"){
     session.set('state', 'expectingaccesstoken')
     processRegister(session)
@@ -106,13 +112,11 @@ function parseCommand(session, command){
     processWhoAmI(session)
   }
   if(command.content.value.startsWith("cancel ")){
-    sendMessage(session, command.content.value)
     let vals = command.content.value.split(" ")
     processCancel(session, vals[1], vals[2])
     return
   }
   if(command.content.value.startsWith("answer ")){
-    sendMessage(session, command.content.value)
     let vals = command.content.value.split(" ")
     processAnswer(session, vals[1], vals[2])
     return
@@ -127,13 +131,23 @@ function parseCommand(session, command){
 
 function parseMessage(session, message){
 
-/*  if(command.content.value === "block"){
+  if(session.get('state') === "block"){
       let controls = [
         {type: 'button', label: 'Terminate', value: 'terminate'}
       ]
       sendCustomControlsMessage(session, "A transaction is in process. Please maintain silence", controls)
   }
-*/
+
+  if(!session.get('user_id')){
+
+      let controls = [
+        {type: 'button', label: 'Login to StackExchange', value: 'register'}
+      ]
+      sendCustomControlsMessage(session, "Before we do anything, we'll have to login!", controls)
+      //return
+  
+  }
+
 
 
 
@@ -143,8 +157,8 @@ function parseMessage(session, message){
     }
     if(message.body === "test"){
         console.log("Hello")
-	sendMessage(session, "y")
-        //processPayment(session, "0x173a595fe9c00")
+	//sendMessage(session, "y")
+        processPayment(session, "0x173a595fe9c00")
 	//session.set("user_id","46580")
         return
     }
@@ -166,6 +180,8 @@ function parseMessage(session, message){
            function(err, response, body){
              let responseJson = JSON.parse(body)
              let tags = responseJson["items"][0]["tags"]
+	     let questionTitle = responseJson["items"][0]["title"]
+	     session.set('questiontitle' , questionTitle)
              let topUsers = {}
              let intersection = {}
              let allUsers = {}
@@ -201,21 +217,22 @@ function parseMessage(session, message){
                      });
                      let controls = []
                      for(sortableIter = 0; sortableIter < sortable.length; sortableIter++){
-                         if(sortableIter == 15) break
-                         controls.push(
-                              {type: 'button', label: allUsers[sortable[sortableIter][0]]["display_name"] + " ("+allUsers[sortable[sortableIter][0]]["reputation"]+")", value: "" + sortable[sortableIter][0]})
-                     }
+                         //if(sortableIter == 15) break
+			 if(twitter.hasOwnProperty(allUsers[sortable[sortableIter][0]]["user_id"])){
+                             controls.push(
+                                  {type: 'button', label: allUsers[sortable[sortableIter][0]]["display_name"] + " ("+allUsers[sortable[sortableIter][0]]["reputation"]+")", value: "" + sortable[sortableIter][0]})
+                             }
+			 }
 
                      session.set('state', 'expectinguser')
                      session.set('usersuggestioncontrol',controls)
-                     sendCustomControlsMessage(session, "Whom do you want to direct the question to?[select from list or enter username of SO user]", controls);
+                     sendCustomControlsMessage(session, "Whom do you want to direct the question to? \n\nSelect from list or enter userid of the user", controls);
                  }
                })
                
              }
            } 
         )
-        sendMessage(session, stackUri)
         return 
     }
     if(session.get('state') === 'expectinguser'){
@@ -272,7 +289,14 @@ sendMessage(session, "testing end")
 
 }
 
-function contactUser(userId, amount){
+function processAsk(session){
+    session.set('status','new')
+    sendMessage(session, "Just copy-paste a "+SITE+".com link here! That simple :)")
+}
+
+function contactUser(session, userId, amount){
+
+    sendMessage(session, "Notify the user by tweeting to them! Click on the below link to tweet! \n\nhttps://twitter.com/intent/tweet?text=@"+twitter[userId]+"%20"+amount.toString()+"%20ethers%20are%20waiting%20for%20you%20on%20the%20@tokenbrowser.%20Say%20hi%20to%20the%20madhavan_test2%20bot%20on%20Token%20@ethereum%20@"+SITE)
 
 }
 
@@ -320,18 +344,36 @@ request(options, function (error, response, body) {
 
     let newRequests = []
     bot.client.store.getKey(session.get("user_id")+"_requests").then((requestsRaw) => {
+
+    bot.client.store.getKey(session.get('answeringquestionof')+"_questions").then((questionsRaw) => {
+        if(questionsRaw){
+	    let questions = JSON.parse(questionsRaw)
+	    let newQuestions = []
+	    for(i = 0  ; i < questions.length; i++){
+	        let question = questions[i]
+		if(question["answerer"] == session.get('user_id') && question["questionid"] == session.get('answering')){
+		    continue    
+		}
+		else{
+		    newQuestions.push(question)
+		}
+	    }
+	    bot.client.store.setKey(session.get('answeringquestionof')+"_questions", JSON.stringify(newQuestions))
+	}
+
       let requests = JSON.parse(requestsRaw)
+      let paid = false
       for(i = 0 ; i < requests.length ; i++){
           let r = requests[i];
-	  sendMessage(session , JSON.stringify(r))
-	  sendMessage(session, session.get('answering'))
-	  sendMessage(session, session.get('answeringquestionof'))
 	  if(r["asker"] == session.get("answeringquestionof") && r["questionid"] == session.get("answering")){
+	    if(!paid){
 	      sendMessage(session, "Yay you earned "+r["amount"].toString() + ". It should reflect in your balance soon!")
 	      session.sendEth(r["amount"], function(session, error, result) {
                   console.log(error)
 		  console.log(JSON.stringify(result))
               });
+	      paid = true
+	    }
 
 	  }
 	  else{
@@ -343,6 +385,13 @@ request(options, function (error, response, body) {
       session.set('answeringquestionof','none')
       session.set('state', 'new')
 
+
+
+
+
+    })
+
+
     });
 
     sendMessage(session, "Yay, posted :) You will recieve your bounty shortly!")
@@ -353,20 +402,27 @@ request(options, function (error, response, body) {
 function processAnswer(session, askerUserId, questionId){
     session.set('answering',questionId)
     session.set('answeringquestionof', askerUserId)
-    sendMessage(session, "The next message you post here will be taken as answer to \n\n https://"+SITE+".com/questions/"+questionId+"\n\n And the answer will be posted automatically from your profile")
     session.set('state','expectinganswer')
+    sendMessage(session, "The next message you post here will be taken as answer to \n\n https://"+SITE+".com/questions/"+questionId+"\n\n And the answer will be posted automatically from your profile")
 }
 
 function processCancel(session, cancelAnswerUserId, cancelQuestionId){
   sendMessage(session, "Attempting to cancel "+cancelQuestionId +" which was asked to "+cancelAnswerUserId)
   bot.client.store.getKey(session.get('user_id')+"_questions").then((questions) => {
+  bot.client.store.getKey(cancelAnswerUserId+"_requests").then((requestsRaw)=>{
     if(questions){
       let allQuestions = JSON.parse(questions)
       let newQuestions = []
       let hasCancelled = false
       for(i = 0 ; i < allQuestions.length; i++){ 
-        if(allQuestions[i]["isAnswered"] == false && allQuestions[i]["answerer"] && allQuestions[i]["questionid"]){
+        if(allQuestions[i]["isAnswered"] == false && allQuestions[i]["answerer"] == cancelAnswerUserId && allQuestions[i]["questionid"] == cancelQuestionId){
+	  if(!hasCancelled){
 	    hasCancelled = true
+	    let transferAmount = Math.floor(allQuestions[i]["amount"] * 1000000 * 0.75)/1000000
+	    session.sendEth(transferAmount, function(session, error, result) {
+	        sendMessage(session, "Amount refunded : "+ transferAmount )
+	    })
+	  }
 	}
 	else{
             newQuestions.push(allQuestions[i])
@@ -379,6 +435,24 @@ function processCancel(session, cancelAnswerUserId, cancelQuestionId){
     else{
         sendMessage(session, "Something went wrong")
     }
+
+
+    if(requestsRaw){
+        let requests = JSON.parse(requestsRaw)
+	let newRequests = []
+	for(i = 0 ; i < requests.length; i++){
+	    if(requests[i]["asker"] == session.get('user_id') && requests[i]["questionid"] == cancelQuestionId){
+	        continue
+	    }
+	    else{
+	        newRequests.push(requests[i])
+	    }
+	}
+	bot.client.store.setKey(cancelAnswerUserId+"_requests", JSON.stringify(newRequests))
+    }
+
+
+  })
   })
 
 }
@@ -404,16 +478,16 @@ function processRequests(session){
           let question = allQuestions[i]
     	      questionControl =    {
                   type: "group",
-                  label: question["amount"],
+                  label: question["questiontitle"],
                   "controls": [
-                      {type: "button", label: "View Question", action: "Webview::http://madhavanmalolan.com"},
+                      {type: "button", label: "View Question", action: "Webview::https://"+SITE+".com/questions/"+question["questionid"]},
                       {type: "button", label: "Answer Question", value: "answer "+ question["asker"]+" " +question["questionid"]}
                   ]
               }
 	      controls.push(questionControl)
 
       }
-      sendCustomControlsMessage(session, "You have asked the following"+allQuestions.length.toString()+" questions", controls)
+      sendCustomControlsMessage(session, "You have been asked the following "+allQuestions.length.toString()+" questions", controls)
       
     }
     else{
@@ -435,9 +509,9 @@ function processQuestions(session){
 	  if(question["answerer"]){
     	      questionControl =    {
                   type: "group",
-                  label: question["amount"],
+                  label: question["questiontitle"],
                   "controls": [
-                      {type: "button", label: "View Question", action: "Webview::http://madhavanmalolan.com"},
+                      {type: "button", label: "View Question", action: "Webview::https://"+SITE+".com/questions/"+question["questionid"]},
                       {type: "button", label: "Cancel Question", value: "cancel "+ question["answerer"]+" " +question["questionid"]}
                   ]
               }
@@ -450,7 +524,7 @@ function processQuestions(session){
 	  //});
 
       }
-      sendCustomControlsMessage(session, "You have asked the following questions", controls)
+      sendCustomControlsMessage(session, "You have asked the following questions ["+allQuestions.length.toString()+"]", controls)
       
     }
     else{
@@ -467,7 +541,6 @@ function processAccessToken(session, accessToken){
       uri : stackUserUri,
       gzip: true
     }, function (err, response, body){
-        sendMessage(session, body)
         let responseJson = JSON.parse(body);
         if(responseJson.hasOwnProperty("items")){
         if(responseJson["items"].length > 0){
@@ -476,6 +549,7 @@ function processAccessToken(session, accessToken){
 	    bot.client.store.setKey("token_"+responseJson["items"][0]["user_id"], session.get('tokenId'))
 	    bot.client.store.setKey("payment_"+responseJson["items"][0]["user_id"], session.get('paymentAddress'))
             session.set('access_token', accessToken)
+	    sendMessage(session, "Validation Successful")
             return;
         }
         }
@@ -487,12 +561,11 @@ function processAccessToken(session, accessToken){
 
 function processPayment(session, amount){
    bot.client.store.getKey(session.get('user_id')+"_questions").then((confirmedQuestionsRaw)=>{
-sendMessage(session, confirmedQuestionsRaw )
    let confirmedQuestions = []
    if(confirmedQuestionsRaw){
      confirmedQuestions = JSON.parse(confirmedQuestionsRaw)
    }   
-   confirmedQuestions.push({questionid : session.get('questionid'), answerer : session.get('answeruser_id'), isAnswered: false, amount : unit.fromWei(amount, 'ether')})
+   confirmedQuestions.push({questionid : session.get('questionid'), answerer : session.get('answeruser_id'), isAnswered: false, amount : unit.fromWei(amount, 'ether'), questiontitle : session.get('questiontitle')})
    bot.client.store.setKey(session.get('user_id') + "_questions" , JSON.stringify(confirmedQuestions))
 
    let askedQuestions = []
@@ -501,9 +574,9 @@ sendMessage(session, confirmedQuestionsRaw )
      if(pendingRequests){
          requests = JSON.parse(pendingRequests)
      }
-     requests.push({questionid : session.get('questionid'), asker: session.get('user_id'), amount : unit.fromWei(amount, 'ether')})
+     requests.push({questionid : session.get('questionid'), asker: session.get('user_id'), amount : unit.fromWei(amount, 'ether'), questiontitle : session.get('questiontitle')})
      bot.client.store.setKey(session.get('answeruser_id')+"_requests", JSON.stringify(requests))
-     contactUser(session.get('answeruser_id'),unit.fromWei(amount, 'ether'))
+     contactUser(session, session.get('answeruser_id'),unit.fromWei(amount, 'ether'))
    })
 })
 
@@ -527,14 +600,12 @@ function processHelp(session){
 }
 
 function processTime(session, time){
-    sendMessage(session, time)
     let timeHrs = parseInt(time)
     if(isNaN(timeHrs)){
         sendMessage(session, "Please enter integral number of hours")
        return 
     }
     session.set('state', 'expectingpayment')
-    sendMessage(session, timeHrs)
     sendMessage(session, "Please pay using the 'Pay' option on your Token browser, the amount you'd like to transfer to "+session.get('answeruser') +". This amount will be paid only if you get a response within the time period you have set, else you will get your money back!")
 }
 
