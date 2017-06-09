@@ -302,7 +302,7 @@ function processAsk(session){
 
 function contactUser(session, userId, amount){
 
-    sendMessage(session, "Notify the user by tweeting to them! Click on the below link to tweet! \n\nhttps://twitter.com/intent/tweet?text=@"+twitter[userId]+"%20"+amount.toString()+"%20ethers%20are%20waiting%20for%20you%20on%20the%20@tokenbrowser.%20Say%20hi%20to%20the%20token_stackexchange%20bot%20on%20Token%20@ethereum%20@"+SITE)
+    sendMessage(session, "Notify the user by tweeting to them! Click on the below link to tweet! \n\nhttps://twitter.com/intent/tweet?text=@"+twitter[userId]+"%20"+amount.toString()+"%20ethers%20are%20waiting%20for%20you%20on%20the%20@tokenbrowser.%20Say%20hi%20to%20the%20madhavan_test2%20bot%20on%20Token%20@ethereum%20@"+SITE)
     bot.client.store.getKey("token_"+userId.toString()).then((token)=>{
 	bot.client.send(token, "You have been asked a question, worth "+amount.toString()+" ethers!" )
     })
