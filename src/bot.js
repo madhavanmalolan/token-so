@@ -77,12 +77,13 @@ function parseCommand(session, command){
     return
   }
 
-  if(command.content.value === "block"){
+  /*if(command.content.value === "block"){
       let controls = [
         {type: 'button', label: 'Terminate', value: 'terminate'}
       ]
       sendCustomControlsMessage(session, "A transaction is in process. Please maintain silence", controls)
   }
+  */
 
   if(command.content.value === 'help'){
       processHelp(session)
@@ -131,12 +132,13 @@ function parseCommand(session, command){
 
 function parseMessage(session, message){
 
-  if(session.get('state') === "block"){
+  /*if(session.get('state') === "block"){
       let controls = [
         {type: 'button', label: 'Terminate', value: 'terminate'}
       ]
       sendCustomControlsMessage(session, "A transaction is in process. Please maintain silence", controls)
   }
+  */
 
   if(!session.get('user_id')){
 
