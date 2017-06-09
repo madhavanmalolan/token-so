@@ -11,16 +11,15 @@ let bot = new Bot()
 // ROUTING
 
 bot.onEvent = function(session, message) {
-  console.log(session.get('state'))
   switch (message.type) {
     case 'Init':
       welcome(session)
       break
     case 'Message':
-      parseMessage(session, message)
+      onMessage(session, message)
       break
     case 'Command':
-      parseCommand(session, message)
+      onCommand(session, message)
       break
     case 'Payment':
       onPayment(session, message)
@@ -36,6 +35,19 @@ function welcome(session){
     sendMessage(session, "This is a bot that allows you to get your questions on StackOverflow solved under tight time constraints for a small price.\n\nIf you are an expert, this is a great place to monetize your expertise!\n\nAt any time, if you need help, just type in 'Help' and send!")
 }
 
+function onCommand(session, command) {
+  switch (command.content.value) {
+    case 'ping':
+      pong(session)
+      break
+    case 'count':
+      count(session)
+      break
+    case 'donate':
+      donate(session)
+      break
+    }
+}
 
 function onPayment(session, message) {
   if (message.fromAddress == session.config.paymentAddress) {
@@ -49,20 +61,12 @@ function onPayment(session, message) {
   } else {
     // handle payments sent to the bot
     if (message.status == 'unconfirmed') {
-      session.set('state','block')
-      //let transaction = JSON.parse(message)
       // payment has been sent to the ethereum network, but is not yet confirmed
-      sendMessage(session, "Thanks for the payment! Once the transaction is confirmed, we will forward the question to " + session.get("answeruser") + ". This should take a few seconds.");
+      sendMessage(session, "Thanks for the payment!");
     } else if (message.status == 'confirmed') {
-      sendMessage(session, "Payment has been confirmed");
-      //sendMessage(session, JSON.stringify(message))
-      
-      processPayment(session, message["value"],'ether')
-      session.set('state','new')
       // handle when the payment is actually confirmed!
     } else if (message.status == 'error') {
-      sendMessage(session, "There was an error with your payment! \n\nPlease re-post your question.");
-      session.set('state','new')
+      sendMessage(session, "There was an error with your payment!");
     }
   }
 }
@@ -656,26 +660,19 @@ function count(session) {
 
 function donate(session) {
   // request $1 USD at current exchange rates
-  //Fiat.fetch().then((toEth) => {
-  //  session.requestEth(toEth.USD(0.1))
-  //})
-  session.requestEth(0.001, "bribe me")
+  Fiat.fetch().then((toEth) => {
+    session.requestEth(toEth.USD(1))
+  })
 }
 
 // HELPERS
 
 function sendMessage(session, message) {
   let controls = [
-    {type: 'button', label: 'Help', value: 'help'}
+    {type: 'button', label: 'Ping', value: 'ping'},
+    {type: 'button', label: 'Count', value: 'count'},
+    {type: 'button', label: 'Donate', value: 'donate'}
   ]
-  session.reply(SOFA.Message({
-    body: message,
-    controls: controls,
-    showKeyboard: false,
-  }))
-}
-
-function sendCustomControlsMessage(session, message, controls){
   session.reply(SOFA.Message({
     body: message,
     controls: controls,
